@@ -191,8 +191,8 @@ RUN set -eux; \
     coverm makedb --help 2>&1 | grep -F "coverm makedb" >/dev/null; \
     coverm filter --help 2>&1 | grep -F "coverm filter" >/dev/null; \
     coverm cluster --help 2>&1 | grep -iF "cluster" >/dev/null; \
-    coverm contig --full-help 2>&1 | grep -F "anir" >/dev/null; \
-    coverm filter --full-help 2>&1 | grep -F "min-mapq" >/dev/null; \
+    coverm contig --full-help-roff 2>&1 | grep -F "anir" >/dev/null; \
+    coverm filter --full-help-roff 2>&1 | grep -F "min\\-mapq" >/dev/null; \
     coverm makedb --help 2>&1 | grep -F "minimap2-sr" >/dev/null; \
     samtools --version 2>&1 | grep -F "samtools" >/dev/null; \
     minimap2 --version >/dev/null; \

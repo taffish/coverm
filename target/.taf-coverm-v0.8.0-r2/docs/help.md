@@ -1,4 +1,4 @@
-coverm 0.8.0-r1
+coverm 0.8.0-r2
 
 Purpose:
   Package CoverM for TAFFISH. CoverM calculates DNA read coverage and

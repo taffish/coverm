@@ -7,7 +7,7 @@ Package identity:
 - name: `coverm`
 - command: `taf-coverm`
 - kind: `tool`
-- version: `0.8.0-r1`
+- version: `0.8.0-r2`
 - license: Apache-2.0 for TAFFISH packaging
 - upstream: <https://github.com/wwood/CoverM>
 
@@ -191,7 +191,9 @@ TMPDIR="$PWD/tmp" taf-coverm coverm genome ...
 
 This app declares native `linux/amd64` and `linux/arm64` builds. The runtime
 comes from Bioconda `coverm=0.8.0`; helper package build strings are recorded
-inside the image for auditability.
+inside the image for auditability. Build and smoke assertions inspect raw ROFF
+help for deep option text so multi-arch buildx/QEMU runs do not depend on
+terminal `man` formatting.
 
 ## Boundaries
 
@@ -229,6 +231,7 @@ your workflow depends on those optional mapper modes.
 The smoke test covers:
 
 - CoverM `0.8.0` runtime version and key subcommand help
+- raw ROFF full-help markers for `anir` and `--min-mapq`
 - presence of `samtools`, mapper helpers, ANI helpers, `man`, `tee`, and shell
   utilities
 - BAM-based `coverm contig`, BAM-based `coverm genome`, `coverm filter`, and

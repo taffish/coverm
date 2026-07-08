@@ -1,7 +1,8 @@
 FROM mambaorg/micromamba:1.5.10-bookworm-slim
 
-ARG COVERM_VERSION=0.7.0
+ARG COVERM_VERSION=0.8.0
 ARG BWA_MEM2_VERSION=2.3
+ARG MINIBWA_VERSION=0.3
 ARG SKANI_VERSION=0.3.2
 
 USER root
@@ -38,6 +39,7 @@ RUN micromamba install -y -n base \
       -c bioconda \
       "coverm=${COVERM_VERSION}" \
       "bwa-mem2=${BWA_MEM2_VERSION}" \
+      "minibwa=${MINIBWA_VERSION}" \
       "skani=${SKANI_VERSION}" \
  && micromamba clean -a -y
 
@@ -58,9 +60,11 @@ RUN set -eux; \
       printf "upstream_tag=v%s\n" "${COVERM_VERSION}"; \
       printf "runtime_source=bioconda::coverm=%s\n" "${COVERM_VERSION}"; \
       printf "extra_runtime=bioconda::bwa-mem2=%s\n" "${BWA_MEM2_VERSION}"; \
+      printf "extra_runtime=bioconda::minibwa=%s\n" "${MINIBWA_VERSION}"; \
       printf "extra_runtime=bioconda::skani=%s\n" "${SKANI_VERSION}"; \
       printf "dependency_note=CoverM Bioconda dependency resolution supplies samtools, minimap2, strobealign, bwa, fastANI, python-dashing, starcode, and shared runtime libraries.\n"; \
-      printf "cluster_note=CoverM 0.7.0 defaults to skani preclustering and skani ANI; the image explicitly includes skani and fastANI-compatible dependencies.\n"; \
+      printf "cluster_note=CoverM 0.8.0 uses skani-capable clustering paths; the image explicitly includes skani, fastANI, bwa-mem2, and minibwa-compatible dependencies.\n"; \
+      printf "optional_mapper_note=CoverM 0.8.0 documents rammap and strobealign-aemb mapper modes; rammap is not bundled because the Bioconda package is not available for linux-aarch64, and strobealign-aemb is not distributed as a separate Bioconda executable.\n"; \
     } > /opt/coverm/share/doc/coverm/source.txt; \
     if [ -d /opt/conda/share/licenses/coverm ]; then \
       cp -a /opt/conda/share/licenses/coverm/. /opt/coverm/share/licenses/coverm/; \
@@ -96,28 +100,31 @@ samtools index aln.sorted.bam
 
 coverm contig \
   --bam-files aln.sorted.bam \
-  --methods mean covered_bases count length \
+  --methods mean anir covered_bases count length \
   --contig-end-exclusion 0 \
   --output-file contig.tsv
 test -s contig.tsv
 grep -F 'contig1' contig.tsv >/dev/null
 grep -F 'Mean' contig.tsv >/dev/null
+grep -F 'ANIr' contig.tsv >/dev/null
 grep -F 'Covered Bases' contig.tsv >/dev/null
 
 coverm genome \
   --bam-files aln.sorted.bam \
   --genome-fasta-files ref.fa \
-  --methods mean covered_fraction length \
+  --methods mean anir covered_fraction length \
   --contig-end-exclusion 0 \
   --min-covered-fraction 0 \
   --output-file genome.tsv
 test -s genome.tsv
 grep -F 'Mean' genome.tsv >/dev/null
+grep -F 'ANIr' genome.tsv >/dev/null
 grep -F 'Covered Fraction' genome.tsv >/dev/null
 
 coverm filter \
   --bam-files aln.sorted.bam \
   --output-bam-files filtered.bam \
+  --min-mapq 0 \
   --min-read-aligned-length 10
 test -s filtered.bam
 samtools quickcheck filtered.bam
@@ -141,6 +148,13 @@ qual="$(printf '%*s' "$readlen" '' | tr ' ' 'I')"
 
 printf '>contig1\n%s\n' "$refseq" > ref.fa
 printf '@read1\n%s\n+\n%s\n' "$readseq" "$qual" > reads.fq
+
+coverm makedb \
+  --reference ref.fa \
+  --mapper minimap2-sr \
+  --output-directory coverm-db \
+  --threads 1
+test -s coverm-db/ref.fa.minimap2-sr.mmi
 
 coverm make \
   --single reads.fq \
@@ -174,12 +188,17 @@ RUN set -eux; \
     coverm genome --help 2>&1 | grep -F "coverm genome" >/dev/null; \
     coverm contig --help 2>&1 | grep -F "coverm contig" >/dev/null; \
     coverm make --help 2>&1 | grep -F "coverm make" >/dev/null; \
+    coverm makedb --help 2>&1 | grep -F "coverm makedb" >/dev/null; \
     coverm filter --help 2>&1 | grep -F "coverm filter" >/dev/null; \
     coverm cluster --help 2>&1 | grep -iF "cluster" >/dev/null; \
+    coverm contig --full-help 2>&1 | grep -F "anir" >/dev/null; \
+    coverm filter --full-help 2>&1 | grep -F "min-mapq" >/dev/null; \
+    coverm makedb --help 2>&1 | grep -F "minimap2-sr" >/dev/null; \
     samtools --version 2>&1 | grep -F "samtools" >/dev/null; \
     minimap2 --version >/dev/null; \
     { bwa 2>&1 || true; } | grep -iF "bwa" >/dev/null; \
     command -v bwa-mem2 >/dev/null; \
+    command -v minibwa >/dev/null; \
     command -v strobealign >/dev/null; \
     command -v fastANI >/dev/null; \
     { skani --version 2>&1 || true; } | grep -iF "skani" >/dev/null; \

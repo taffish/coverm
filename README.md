@@ -7,7 +7,7 @@ Package identity:
 - name: `coverm`
 - command: `taf-coverm`
 - kind: `tool`
-- version: `0.7.0-r1`
+- version: `0.8.0-r1`
 - license: Apache-2.0 for TAFFISH packaging
 - upstream: <https://github.com/wwood/CoverM>
 
@@ -16,10 +16,11 @@ Package identity:
 CoverM is a configurable DNA read coverage and relative-abundance calculator
 for metagenomics. It can calculate coverage for genomes/MAGs with
 `coverm genome`, calculate coverage for individual contigs with
-`coverm contig`, generate BAM files with `coverm make`, threshold alignments
-with `coverm filter`, and dereplicate/cluster genomes with `coverm cluster`.
+`coverm contig`, generate BAM files with `coverm make`, generate reusable
+mapping indexes with `coverm makedb`, threshold alignments with
+`coverm filter`, and dereplicate/cluster genomes with `coverm cluster`.
 
-This TAFFISH image installs CoverM `0.7.0` from Bioconda and keeps automatic
+This TAFFISH image installs CoverM `0.8.0` from Bioconda and keeps automatic
 command mode enabled so the same container can expose CoverM and its important
 runtime helpers.
 
@@ -27,11 +28,14 @@ runtime helpers.
 
 This app supports:
 
-- `coverm genome`, `coverm contig`, `coverm make`, `coverm filter`,
+- `coverm genome`, `coverm contig`, `coverm make`, `coverm makedb`,
+  `coverm filter`,
   `coverm cluster`, and `coverm shell-completion`
 - BAM-based coverage paths and raw FASTA/FASTQ read mapping paths
+- CoverM `0.8.0` additions including `anir` / ANIr coverage reporting,
+  `--min-mapq` filtering, and persistent mapping indexes through `makedb`
 - common mapper/runtime helpers: `samtools`, `minimap2`, `bwa`, `bwa-mem2`,
-  `strobealign`, `skani`, `fastANI`, and `starcode`
+  `minibwa`, `strobealign`, `skani`, `fastANI`, and `starcode`
 - native `linux/amd64` and `linux/arm64` container builds through Bioconda
 
 This app does not:
@@ -40,9 +44,10 @@ This app does not:
   remote demo data
 - replace production-scale validation of abundance estimates, dereplication
   parameters, or mapper choices
-- promise that every legacy optional backend is smoke-tested; CoverM 0.7.0
-  defaults to `skani` for preclustering and ANI, and that path is the packaged
-  cluster focus
+- promise that every optional upstream mapper is bundled on every platform;
+  `rammap` is not included because the Bioconda package is currently
+  `linux/amd64` only, and `strobealign-aemb` is not distributed as a separate
+  Bioconda executable in the packaged dependency set
 
 ## Container Contents
 
@@ -50,6 +55,7 @@ This app does not:
 - `samtools`: BAM/SAM/CRAM sorting, indexing, and validation
 - `minimap2`: default short-read and long-read mapping backend
 - `bwa` and `bwa-mem2`: alternative BWA mapping backends
+- `minibwa`: lightweight BWA-compatible mapper supported by CoverM `0.8.0`
 - `strobealign`: alternative short-read mapping backend
 - `skani` and `fastANI`: ANI/dereplication backends for cluster paths
 - `starcode`, `man`, `tee`, shell/core utilities required by CoverM help and
@@ -99,12 +105,22 @@ taf-coverm coverm make \
   --threads 8
 ```
 
+Generate a reusable mapping index:
+
+```sh
+taf-coverm coverm makedb \
+  --reference assembly.fa \
+  --mapper minimap2-sr \
+  --output-directory coverm_db
+```
+
 Filter BAM alignments:
 
 ```sh
 taf-coverm coverm filter \
   --bam-files sample.sorted.bam \
   --output-bam-files sample.filtered.bam \
+  --min-mapq 20 \
   --min-read-percent-identity 95
 ```
 
@@ -134,6 +150,7 @@ CoverM itself has subcommands. Prefer:
 taf-coverm coverm genome ...
 taf-coverm coverm contig ...
 taf-coverm coverm make ...
+taf-coverm coverm makedb ...
 ```
 
 Do not write `taf-coverm genome ...`; `genome` is not a container executable.
@@ -151,13 +168,13 @@ Do not write `taf-coverm genome ...`; `genome` is not a container executable.
 
 Coverage commands write TSV output to stdout or `--output-file`. The selected
 `--methods` control which columns are produced, such as `mean`,
-`relative_abundance`, `covered_fraction`, `covered_bases`, `count`, `rpkm`,
-`tpm`, and related metrics.
+`relative_abundance`, `covered_fraction`, `covered_bases`, `count`, `anir`,
+`rpkm`, `tpm`, and related metrics.
 
 `coverm make` writes BAM files under `--output-directory`. `coverm filter`
-writes thresholded BAM files. `coverm cluster` writes cluster definitions,
-representative lists, or representative FASTA directories depending on the
-chosen output options.
+writes thresholded BAM files. `coverm makedb` writes mapper index files for
+reuse. `coverm cluster` writes cluster definitions, representative lists, or
+representative FASTA directories depending on the chosen output options.
 
 ## Resources, Databases, and Platform
 
@@ -173,22 +190,30 @@ TMPDIR="$PWD/tmp" taf-coverm coverm genome ...
 ```
 
 This app declares native `linux/amd64` and `linux/arm64` builds. The runtime
-comes from Bioconda `coverm=0.7.0`; helper package build strings are recorded
+comes from Bioconda `coverm=0.8.0`; helper package build strings are recorded
 inside the image for auditability.
 
 ## Boundaries
 
-The image focuses on the upstream CoverM `0.7.0` command surface and common
+The image focuses on the upstream CoverM `0.8.0` command surface and common
 runtime dependencies. The publish smoke uses tiny synthetic inputs to exercise
 BAM-based `contig`, BAM-based `genome`, `filter`, and raw-read mapping through
-`make`/`contig`. It does not benchmark coverage values, validate mapper
-sensitivity on real metagenomes, or run production-scale dereplication.
+`make`/`contig`, plus `makedb`, `anir`, and `--min-mapq`. It does not benchmark
+coverage values, validate mapper sensitivity on real metagenomes, or run
+production-scale dereplication.
 
 CoverM documents a legacy `dashing` precluster option. This app intentionally
-validates the CoverM 0.7.0 default `skani` path because it is available across
+validates the CoverM `skani` path because it is available across
 the declared native platforms. If a workflow explicitly requires dashing,
 verify `taf-coverm dashing --help` in that image/platform first or use a
 custom image.
+
+CoverM `0.8.0` also documents `rammap` and `strobealign-aemb` mapper modes.
+`minibwa` is bundled because it is available for both declared native platforms.
+`rammap` is not bundled in this release because the Bioconda package is not
+available for `linux/aarch64`, and `strobealign-aemb` is not available as a
+separate Bioconda executable. Use a custom image or an amd64-only site image if
+your workflow depends on those optional mapper modes.
 
 ## Troubleshooting
 
@@ -203,11 +228,12 @@ custom image.
 
 The smoke test covers:
 
-- CoverM `0.7.0` runtime version and key subcommand help
+- CoverM `0.8.0` runtime version and key subcommand help
 - presence of `samtools`, mapper helpers, ANI helpers, `man`, `tee`, and shell
   utilities
 - BAM-based `coverm contig`, BAM-based `coverm genome`, `coverm filter`, and
   raw-read mapping through `coverm make` plus `coverm contig`
+- `coverm makedb`, `anir` output columns, and `--min-mapq` filtering
 
 It does not replace full scientific validation on production datasets.
 
